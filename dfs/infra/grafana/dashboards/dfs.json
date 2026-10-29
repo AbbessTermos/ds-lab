@@ -1,0 +1,241 @@
+{
+ "uid": "dfs",
+ "title": "DFS cluster",
+ "refresh": "10s",
+ "time": {
+  "from": "now-30m",
+  "to": "now"
+ },
+ "schemaVersion": 39,
+ "panels": [
+  {
+   "id": 1,
+   "type": "timeseries",
+   "title": "Throughput (requests/s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(rate(dfs_requests_total[1m]))",
+     "legendFormat": "Throughput (requests/s)"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "reqps"
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 2,
+   "type": "timeseries",
+   "title": "Upload / download MB/s",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(rate(dfs_bytes_uploaded_total[1m]))/1e6",
+     "legendFormat": "upload"
+    },
+    {
+     "refId": "B",
+     "expr": "sum(rate(dfs_bytes_downloaded_total[1m]))/1e6",
+     "legendFormat": "download"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "MBs"
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 3,
+   "type": "timeseries",
+   "title": "Latency p95 (s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 8,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "histogram_quantile(0.95, sum by (le) (rate(dfs_request_seconds_bucket[1m])))",
+     "legendFormat": "Latency p95 (s)"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 4,
+   "type": "timeseries",
+   "title": "Free disk per node (GB)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 8,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max by (node) (dfs_node_free_bytes) / 1e9",
+     "legendFormat": "{{node}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 5,
+   "type": "timeseries",
+   "title": "Chunks per node",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 16,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max by (node) (dfs_node_chunks)",
+     "legendFormat": "{{node}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 6,
+   "type": "timeseries",
+   "title": "Degraded objects",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 16,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(dfs_degraded_objects)",
+     "legendFormat": "Degraded objects"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 7,
+   "type": "timeseries",
+   "title": "Repair rate (chunks/s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 24,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(rate(dfs_counter{name=\"repaired_chunks\"}[1m]))",
+     "legendFormat": "Repair rate (chunks/s)"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 8,
+   "type": "timeseries",
+   "title": "Job queue depth (RabbitMQ)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 24,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(dfs_queue_depth)",
+     "legendFormat": "Job queue depth (RabbitMQ)"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none"
+    },
+    "overrides": []
+   }
+  }
+ ]
+}

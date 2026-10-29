@@ -1,0 +1,46 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>DFS</title>
+<script src="https://unpkg.com/vue@3.4.38/dist/vue.global.prod.js"></script>
+<style>body{font-family:sans-serif;margin:20px}table{border-collapse:collapse;margin:8px 0}td,th{border:1px solid #ccc;padding:4px 8px}
+section{margin-bottom:24px}.up{color:green}.down{color:red}.bar{background:#4a90d9;height:12px}</style></head>
+<body><div id="app">
+<h2>Distributed Storage</h2>
+API key: <input v-model="key" @change="refresh">
+<section><h3>Cluster status</h3>
+<table><tr><th>Node</th><th>Health</th><th>Free (GB)</th><th>Chunks</th><th>Distribution</th></tr>
+<tr v-for="n in st.nodes"><td>{{n.id}}</td><td :class="n.status">{{n.status}}</td><td>{{(n.free_bytes/1e9).toFixed(1)}}</td>
+<td>{{n.chunks_in_metadata}}</td><td><div class="bar" :style="{width:(n.chunks_in_metadata/maxC*200)+'px'}"></div></td></tr></table>
+Objects: {{st.objects}} | Degraded objects: {{st.degraded_objects}} | Repair pending: {{st.repair?.repair_pending||0}} | Repaired chunks: {{st.repair?.repaired_chunks||0}}
+</section>
+<section><h3>Buckets</h3>
+<input v-model="nb" placeholder="new bucket"><select v-model="mode"><option>rep</option><option>ec</option></select>
+<button @click="mkBucket">Create</button>
+<div><label v-for="b in buckets"><input type="radio" :value="b.name" v-model="bucket" @change="loadObjs"> {{b.name}} ({{b.mode}}) </label></div>
+</section>
+<section v-if="bucket"><h3>Objects in {{bucket}}</h3>
+<input type="file" ref="file"> <input v-model="tags" placeholder="tags k=v,k2=v2"> <button @click="upload">Upload</button> {{msg}}
+<table><tr><th>Key</th><th>Size</th><th>Version</th><th></th></tr>
+<tr v-for="o in objs"><td>{{o.key}}</td><td>{{o.size}}</td><td>{{o.version}}</td>
+<td><button @click="download(o.key)">Download</button> <button @click="del(o.key)">Delete</button></td></tr></table>
+</section>
+<section><h3>Search (Elasticsearch)</h3>
+<input v-model="q" placeholder="e.g. key:*.json or tags.type:video"> <button @click="search">Search</button>
+<table><tr v-for="r in results"><td>{{r.bucket}}</td><td>{{r.key}}</td><td>{{r.size}}</td><td>{{r.created}}</td><td>{{JSON.stringify(r.tags)}}</td></tr></table>
+</section></div>
+<script>
+Vue.createApp({data:()=>({key:'admin-key',st:{},buckets:[],bucket:'',objs:[],nb:'',mode:'rep',tags:'',msg:'',q:'*',results:[]}),
+computed:{maxC(){return Math.max(1,...(this.st.nodes||[]).map(n=>n.chunks_in_metadata))}},
+methods:{
+ api(p,o={}){o.headers={...(o.headers||{}),'X-API-Key':this.key};return fetch(p,o)},
+ async refresh(){this.st=await (await this.api('/status')).json();this.buckets=await (await this.api('/buckets')).json()},
+ async mkBucket(){await this.api('/buckets/'+this.nb+'?mode='+this.mode,{method:'POST'});this.refresh()},
+ async loadObjs(){this.objs=await (await this.api('/buckets/'+this.bucket+'/objects')).json()},
+ async upload(){const f=this.$refs.file.files[0];this.msg='uploading...';
+   const r=await this.api('/buckets/'+this.bucket+'/objects/'+encodeURIComponent(f.name)+'?tags='+encodeURIComponent(this.tags),{method:'PUT',body:f});
+   this.msg=JSON.stringify(await r.json());this.loadObjs()},
+ async download(k){const b=await (await this.api('/buckets/'+this.bucket+'/objects/'+encodeURIComponent(k))).blob();
+   const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=k;a.click()},
+ async del(k){await this.api('/buckets/'+this.bucket+'/objects/'+encodeURIComponent(k),{method:'DELETE'});this.loadObjs()},
+ async search(){this.results=await (await this.api('/es/search?q='+encodeURIComponent(this.q))).json()}},
+mounted(){this.refresh();setInterval(this.refresh,3000)}}).mount('#app')
+</script></body></html>

@@ -1,0 +1,178 @@
+services:
+  # ---- metadata store: PostgreSQL primary + streaming replica (no single point of failure)
+  postgres:
+    image: postgres:latest
+    environment: {POSTGRES_USER: dfs, POSTGRES_PASSWORD: dfs, POSTGRES_DB: dfs}
+    command: ["postgres", "-c", "wal_level=replica", "-c", "max_wal_senders=10", "-c", "hot_standby=on", "-c", "hba_file=/etc/pg_hba.conf"]
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./infra/postgres/pg_hba.conf:/etc/pg_hba.conf:ro
+
+  postgres-replica:
+    image: postgres:latest
+    user: postgres
+    entrypoint: ["bash", "/replica-start.sh"]
+    volumes:
+      - pgreplica:/var/lib/postgresql
+      - ./infra/postgres/replica-start.sh:/replica-start.sh
+    depends_on: [postgres]
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - cluster.routing.allocation.disk.threshold_enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports: ["15673:15672"]
+
+  # ---- 2 gateway instances behind Nginx
+  gateway1:
+    build: ./gateway
+    restart: unless-stopped
+    image: dfs-gateway:latest
+    hostname: gateway1
+    environment:
+      DATABASE_URL: "postgresql://dfs:dfs@postgres:5432,postgres-replica:5432/dfs?target_session_attrs=read-write&connect_timeout=3"
+      ES_URL: http://elasticsearch:9200
+      RABBIT_URL: amqp://guest:guest@rabbitmq:5672/%2F
+      API_KEYS: "admin-key:100000,test-key:20"
+      REPLICATION_N: "3"
+      WRITE_QUORUM: "2"
+      READ_QUORUM: "2"
+      EC_K: "4"
+      EC_M: "2"
+      FAIL_AFTER_SEC: "10"
+      SCRUB_EVERY_SEC: "300"
+      RUN_BACKGROUND: "1"
+    depends_on: [postgres, elasticsearch, rabbitmq]
+
+  gateway2:
+    build: ./gateway
+    restart: unless-stopped
+    image: dfs-gateway:latest
+    hostname: gateway2
+    environment:
+      DATABASE_URL: "postgresql://dfs:dfs@postgres:5432,postgres-replica:5432/dfs?target_session_attrs=read-write&connect_timeout=3"
+      ES_URL: http://elasticsearch:9200
+      RABBIT_URL: amqp://guest:guest@rabbitmq:5672/%2F
+      API_KEYS: "admin-key:100000,test-key:20"
+      REPLICATION_N: "3"
+      WRITE_QUORUM: "2"
+      READ_QUORUM: "2"
+      EC_K: "4"
+      EC_M: "2"
+      FAIL_AFTER_SEC: "10"
+      SCRUB_EVERY_SEC: "300"
+      RUN_BACKGROUND: "0"
+    depends_on: [postgres, elasticsearch, rabbitmq]
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports: ["8080:80"]
+    volumes: ["./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"]
+    depends_on: [gateway1, gateway2]
+
+  # ---- workers: repair / rebalance / garbage-collection jobs from RabbitMQ
+  worker:
+    build: ./gateway
+    restart: unless-stopped
+    image: dfs-gateway:latest
+    command: ["python", "worker.py"]
+    environment:
+      DATABASE_URL: "postgresql://dfs:dfs@postgres:5432,postgres-replica:5432/dfs?target_session_attrs=read-write&connect_timeout=3"
+      ES_URL: http://elasticsearch:9200
+      RABBIT_URL: amqp://guest:guest@rabbitmq:5672/%2F
+      API_KEYS: "admin-key:100000,test-key:20"
+      REPLICATION_N: "3"
+      WRITE_QUORUM: "2"
+      READ_QUORUM: "2"
+      EC_K: "4"
+      EC_M: "2"
+      FAIL_AFTER_SEC: "10"
+      SCRUB_EVERY_SEC: "300"
+    deploy: {replicas: 2}
+    depends_on: [postgres, rabbitmq]
+
+  # ---- monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    ports: ["9091:9090"]
+    volumes: ["./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+
+  grafana:
+    image: grafana/grafana:latest
+    ports: ["3001:3000"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/dfs.json
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+  node1:
+    build: ./node
+    image: dfs-node:latest
+    container_name: node1
+    environment: {NODE_ID: node1, NODE_URL: "http://node1:8000", META_URL: "http://nginx:80"}
+    volumes: [node1:/data]
+
+  node2:
+    build: ./node
+    image: dfs-node:latest
+    container_name: node2
+    environment: {NODE_ID: node2, NODE_URL: "http://node2:8000", META_URL: "http://nginx:80"}
+    volumes: [node2:/data]
+
+  node3:
+    build: ./node
+    image: dfs-node:latest
+    container_name: node3
+    environment: {NODE_ID: node3, NODE_URL: "http://node3:8000", META_URL: "http://nginx:80"}
+    volumes: [node3:/data]
+
+  node4:
+    build: ./node
+    image: dfs-node:latest
+    container_name: node4
+    environment: {NODE_ID: node4, NODE_URL: "http://node4:8000", META_URL: "http://nginx:80"}
+    volumes: [node4:/data]
+
+  node5:
+    build: ./node
+    image: dfs-node:latest
+    container_name: node5
+    environment: {NODE_ID: node5, NODE_URL: "http://node5:8000", META_URL: "http://nginx:80"}
+    volumes: [node5:/data]
+
+  node6:
+    build: ./node
+    image: dfs-node:latest
+    container_name: node6
+    environment: {NODE_ID: node6, NODE_URL: "http://node6:8000", META_URL: "http://nginx:80"}
+    volumes: [node6:/data]
+
+  # extra node, started only to show rebalancing:  docker compose --profile scale up -d node7
+  node7:
+    build: ./node
+    image: dfs-node:latest
+    container_name: node7
+    profiles: [scale]
+    environment: {NODE_ID: node7, NODE_URL: "http://node7:8000", META_URL: "http://nginx:80"}
+    volumes: [node7:/data]
+
+volumes:
+  pgdata:
+  pgreplica:
+  node1:
+  node2:
+  node3:
+  node4:
+  node5:
+  node6:
+  node7:

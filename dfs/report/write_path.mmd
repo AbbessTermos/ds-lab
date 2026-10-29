@@ -1,0 +1,21 @@
+flowchart TD
+  A[Client PUT /buckets/b/objects/key + API key] --> B{Auth + rate limit OK?}
+  B -- no --> X[401 / 429]
+  B -- yes --> C[Stream body to temp file]
+  C --> D[Split into chunks: fixed 4MB or FastCDC]
+  D --> E[SHA-256 of each chunk]
+  E --> F{Chunk already in metadata?}
+  F -- yes --> G[refcount + 1, no upload: dedup]
+  F -- no --> H{Bucket mode}
+  H -- replication --> I[Consistent hash ring: pick N=3 nodes]
+  I --> J[PUT chunk to 3 nodes in parallel]
+  J --> K{acks >= W=2?}
+  K -- no --> X2[503 write quorum failed]
+  K -- yes --> L[Save chunk locations]
+  H -- erasure coding --> M[Reed-Solomon 4+2: 6 shares]
+  M --> N[Ring picks 6 nodes, PUT one share each]
+  N --> L
+  G --> O[Save object metadata in PostgreSQL: bucket, key, size, version, chunk list, date, tags]
+  L --> O
+  O --> P[Index metadata in Elasticsearch]
+  P --> Q[200 OK]

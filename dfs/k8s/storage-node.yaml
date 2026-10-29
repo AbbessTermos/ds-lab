@@ -1,0 +1,44 @@
+# Storage nodes as a StatefulSet: stable names (storage-node-0..3) and one persistent volume each.
+apiVersion: v1
+kind: Service
+metadata: {name: storage-node}
+spec:
+  clusterIP: None                     # headless: gives each pod its own DNS name
+  selector: {app: storage-node}
+  ports: [{port: 8000}]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: {name: storage-node}
+spec:
+  serviceName: storage-node
+  replicas: 4
+  selector: {matchLabels: {app: storage-node}}
+  template:
+    metadata: {labels: {app: storage-node}}
+    spec:
+      containers:
+        - name: node
+          image: dfs-node:latest
+          imagePullPolicy: Never
+          env:
+            - name: POD_NAME
+              valueFrom: {fieldRef: {fieldPath: metadata.name}}
+            - {name: NODE_ID, value: "$(POD_NAME)"}
+            - {name: NODE_URL, value: "http://$(POD_NAME).storage-node:8000"}
+            - {name: META_URL, value: "http://gateway:8000"}
+          ports: [{containerPort: 8000}]
+          volumeMounts: [{name: data, mountPath: /data}]
+          livenessProbe:                # restart the pod if the node stops answering
+            httpGet: {path: /health, port: 8000}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          readinessProbe:               # only send traffic when the node is ready
+            httpGet: {path: /health, port: 8000}
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: {requests: {storage: 1Gi}}

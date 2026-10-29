@@ -1,0 +1,16 @@
+flowchart TD
+  A[Each node sends heartbeat every 3s: id, free space, chunk count] --> B[Metadata service records last_seen]
+  B --> C{No heartbeat for 10s?}
+  C -- no --> A
+  C -- yes --> D[Mark node DOWN]
+  D --> E[Repair loop every 5s: find chunks with fewer than N copies or 6 shares on live nodes]
+  E --> F{Mode}
+  F -- replication --> G[Read healthy copy, write to new node chosen by ring]
+  F -- erasure coding --> H[Read 4 shares, decode, re-encode missing share, write to new node]
+  G --> I[Update chunk locations, count repair traffic]
+  H --> I
+  S[Scrubber every 5 min] --> T[Re-read every copy, node checks SHA-256]
+  T --> U{Corrupted / missing?}
+  U -- yes --> V[Delete bad copy, rebuild from healthy copy]
+  V --> I
+  U -- no --> S

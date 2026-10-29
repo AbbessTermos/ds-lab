@@ -1,0 +1,15 @@
+flowchart TD
+  A[Client GET object, optional Range header] --> B{Auth + rate limit OK?}
+  B -- no --> X[401 / 429]
+  B -- yes --> C[Load object metadata from PostgreSQL]
+  C --> D[Find chunks covering the byte range]
+  D --> E{Bucket mode}
+  E -- replication --> F[GET chunk from a live replica]
+  F --> G[Node verifies SHA-256, 409 if corrupted]
+  G --> H{R=2 replicas confirmed?}
+  H -- no --> F
+  H -- yes --> K[Return chunk bytes]
+  E -- erasure coding --> I[GET any 4 of 6 shares from live nodes]
+  I --> J[Reed-Solomon decode]
+  J --> K
+  K --> L[Stream bytes to client: 200 or 206 Partial Content]

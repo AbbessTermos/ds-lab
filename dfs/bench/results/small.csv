@@ -1,0 +1,4 @@
+workload,mode,chunking,files,logical_MB,unique_chunks,dedup_ratio,physical_MB,storage_overhead,upload_s,upload_MBps,upload_files_per_s,download_s,download_MBps,repair_time_s,repaired_chunks,repair_read_MB,repair_written_MB
+small,rep,fixed,5000,132.0,4532,1.11,356.6,3.0,154.4,0.9,32.4,51.0,2.6,27.3,2365,62.25,62.25
+small,ec,fixed,5000,132.0,4532,1.11,178.3,1.5,167.3,0.8,29.9,60.3,2.2,76.1,4532,118.88,29.72
+small,rep,cdc,5000,132.0,4532,1.11,356.6,3.0,116.1,1.1,43.1,54.3,2.4,,,,
